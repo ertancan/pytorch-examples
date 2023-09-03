@@ -33,7 +33,7 @@ from utils_qa import postprocess_qa_predictions
 import transformers
 from transformers import (
     AutoConfig,
-    AutoModelForQuestionAnswering,
+    LlamaForCausalLM,
     AutoTokenizer,
     DataCollatorWithPadding,
     HfArgumentParser,
@@ -257,7 +257,7 @@ def main():
     logger.info ('Adding EOS token (' + tokenizer.eos_token + ') as pad token')
 
     tokenizer.pad_token = tokenizer.eos_token
-    model = AutoModelForQuestionAnswering.from_pretrained(
+    model = LlamaForCausalLM.from_pretrained(
         model_args.model_name_or_path,
         from_tf=bool(".ckpt" in model_args.model_name_or_path),
         config=config,
