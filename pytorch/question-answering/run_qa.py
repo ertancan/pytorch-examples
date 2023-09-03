@@ -33,19 +33,21 @@ from utils_qa import postprocess_qa_predictions
 import transformers
 from transformers import (
     AutoConfig,
-    LlamaForCausalLM,
+    AutoModelForCausalLM,
     AutoTokenizer,
     DataCollatorWithPadding,
     HfArgumentParser,
     PreTrainedTokenizerFast,
     TrainingArguments,
+    Trainer,
     default_data_collator,
     set_seed,
 )
 from transformers.trainer_utils import get_last_checkpoint
-from transformers.utils import check_min_version, send_example_telemetry
 from transformers.utils.versions import require_version
 
+import torch.optim as optim
+import torch
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 #check_min_version("4.33.0.dev0")
@@ -255,11 +257,17 @@ def main():
         trust_remote_code=model_args.trust_remote_code,
     )
     logger.info ('Adding EOS token (' + tokenizer.eos_token + ') as pad token')
-
     tokenizer.pad_token = tokenizer.eos_token
-    model = LlamaForCausalLM.from_pretrained(
+
+    n_gpus = torch.cuda.device_count()
+    max_memory = f'{22888}MB'
+    print('Number of GPUs: ' + str(n_gpus))
+    print('Max memory: ' + str(max_memory))
+    model = AutoModelForCausalLM.from_pretrained(
         model_args.model_name_or_path,
         config=config,
+        device_map='auto', 
+        max_memory={i: max_memory for i in range(n_gpus)}
     )
 
     # Tokenizer check: this script requires a fast tokenizer.
@@ -343,13 +351,20 @@ def main():
     )
 
 
-    # Initialize our Trainer
-    trainer = QuestionAnsweringTrainer(
+    trainer = Trainer(
         model=model,
-        args=training_args,
-        train_dataset=train_dataset if training_args.do_train else None,
-        tokenizer=tokenizer,
-        data_collator=data_collator,
+        train_dataset=train_dataset,
+        args=TrainingArguments(
+            gradient_accumulation_steps=4,
+            num_train_epochs=10,
+            warmup_steps=2,
+            learning_rate=1e-4,
+            logging_steps=1,
+            fp16=True,
+            output_dir="outputs",
+            # Ignoring the optimizer for now as it defaults to AdamW
+        ),
+        data_collator=data_collator
     )
 
     # Training
