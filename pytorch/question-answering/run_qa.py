@@ -394,7 +394,7 @@ def main():
         device_map='auto', 
         max_memory={i: max_memory for i in range(n_gpus)}
     )
-    model.gradient_checkpointing_enable()
+    # model.gradient_checkpointing_enable()
     modules = find_all_linear_names(model)
     peft_config = create_peft_config(modules)
     print('Getting the PEFT model')
@@ -412,30 +412,12 @@ def main():
     for k, v in dtypes.items():
         print(k, v, v/total)
     
-    optimizer = optim.AdamW(
-            model.parameters(),
-            lr=training_args.learning_rate,
-            weight_decay=0.1, # Same as in the original paper
-        )
-    scheduler = StepLR(optimizer, 
-                       step_size=1,  # Change learning rate every step_size epochs
-                       gamma=0.1  # 0.1 is the default
-                       )
     #TODO: Create custom trainer
     trainer = Trainer(
         model=model,
         train_dataset=train_dataset,
       #  test_dataset=test_dataset,
-        args=TrainingArguments(
-            gradient_accumulation_steps=4,
-            num_train_epochs=training_args.num_train_epochs,
-            warmup_steps=training_args.warmup_steps,
-            learning_rate=training_args.learning_rate,
-            logging_steps=1,
-            fp16=True,
-            output_dir=training_args.output_dir,
-        ),
-        optimizers=(optimizer, scheduler),
+        args=training_args,
         data_collator=data_collator
     )
 
