@@ -275,16 +275,12 @@ def main():
     config = AutoConfig.from_pretrained(
         model_args.config_name if model_args.config_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
-        revision=model_args.model_revision,
-        token=model_args.token,
         trust_remote_code=model_args.trust_remote_code,
     )
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
         use_fast=True,
-        revision=model_args.model_revision,
-        token=model_args.token,
         trust_remote_code=model_args.trust_remote_code,
     )
     logger.info ('Adding EOS token (' + tokenizer.eos_token + ') as pad token')
