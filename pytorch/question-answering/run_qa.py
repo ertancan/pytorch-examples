@@ -133,15 +133,6 @@ class DataTrainingArguments:
             )
         },
     )
-    max_train_samples: Optional[int] = field(
-        default=None,
-        metadata={
-            "help": (
-                "For debugging purposes or quicker training, truncate the number of training examples to this "
-                "value if set."
-            )
-        },
-    )
     doc_stride: int = field(
         default=128,
         metadata={"help": "When splitting up a long document into chunks, how much stride to take between chunks."},
@@ -226,10 +217,13 @@ def main():
     data_files = {}
     if data_args.train_file is not None:
         data_files["train"] = data_args.train_file
-        extension = data_args.train_file.split(".")[-1]
+    if data_args.validation_file is not None:
+        data_files["validation"] = data_args.validation_file
+    if data_args.test_file is not None:
+        data_files["test"] = data_args.test_file
 
     raw_datasets = load_dataset(
-        extension,
+        'json',
         data_files=data_files,
         cache_dir=model_args.cache_dir,
     )
@@ -277,17 +271,9 @@ def main():
             " https://huggingface.co/transformers/index.html#supported-frameworks to find the model types that meet"
             " this requirement"
         )
-
-    # Preprocessing the datasets.
-    # Preprocessing is slighlty different for training and evaluation.
-    if training_args.do_train:
-        column_names = raw_datasets["train"].column_names
    
-    question_column_name = "question" if "question" in column_names else None
-    answer_column_name = "answer" if "answer" in column_names else None
-
-    if not question_column_name or not answer_column_name:
-        raise ValueError("Question and Answer columns are missing from the dataset.")
+    question_column_name = "prompt"
+    answer_column_name = "completion"
 
 
     if data_args.max_seq_length > tokenizer.model_max_length:
@@ -309,6 +295,7 @@ def main():
         # context that overlaps a bit the context of the previous feature.
         tokenized_examples = tokenizer(
             examples[question_column_name],
+            examples[answer_column_name],
             max_length=max_seq_length,
             stride=data_args.doc_stride,
             return_overflowing_tokens=True,
@@ -321,11 +308,11 @@ def main():
     if training_args.do_train:
         if "train" not in raw_datasets:
             raise ValueError("--do_train requires a train dataset")
+        if "test" not in raw_datasets:
+            raise ValueError("--do_train requires a test dataset")
         train_dataset = raw_datasets["train"]
-        if data_args.max_train_samples is not None:
-            # We will select sample from whole data if argument is specified
-            max_train_samples = min(len(train_dataset), data_args.max_train_samples)
-            train_dataset = train_dataset.select(range(max_train_samples))
+        test_dataset = raw_datasets["test"]
+     
         # Create train feature from dataset
         with training_args.main_process_first(desc="train dataset map pre-processing"):
             print(train_dataset)
@@ -333,14 +320,18 @@ def main():
                 prepare_train_features,
                 batched=True,
                 num_proc=data_args.preprocessing_num_workers,
-                remove_columns=column_names,
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on train dataset",
             )
-        if data_args.max_train_samples is not None:
-            # Number of samples might increase during Feature Creation, We select only specified max samples
-            max_train_samples = min(len(train_dataset), data_args.max_train_samples)
-            train_dataset = train_dataset.select(range(max_train_samples))
+        with training_args.main_process_first(desc="train dataset map pre-processing"):
+            print(test_dataset)
+            test_dataset = test_dataset.map(
+                prepare_train_features,
+                batched=True,
+                num_proc=data_args.preprocessing_num_workers,
+                load_from_cache_file=not data_args.overwrite_cache,
+                desc="Running tokenizer on train dataset",
+            )
     # Data collator
     # We have already padded to max length if the corresponding flag is True, otherwise we need to pad in the data
     # collator.
@@ -354,6 +345,7 @@ def main():
     trainer = Trainer(
         model=model,
         train_dataset=train_dataset,
+      #  test_dataset=test_dataset,
         args=TrainingArguments(
             gradient_accumulation_steps=4,
             num_train_epochs=10,
@@ -378,10 +370,8 @@ def main():
         trainer.save_model()  # Saves the tokenizer too for easy upload
 
         metrics = train_result.metrics
-        max_train_samples = (
-            data_args.max_train_samples if data_args.max_train_samples is not None else len(train_dataset)
-        )
-        metrics["train_samples"] = min(max_train_samples, len(train_dataset))
+       
+        metrics["train_samples"] = len(train_dataset)
 
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
