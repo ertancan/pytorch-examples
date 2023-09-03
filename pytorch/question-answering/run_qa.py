@@ -276,9 +276,7 @@ def main():
 
     # Training preprocessing
     def prepare_train_features(examples):
-        # Some of the questions have lots of whitespace on the left, which is not useful and will make the
-        # truncation of the context fail (the tokenized question will take a lots of space). So we remove that
-        # left whitespace
+        #TODO: Delete the extra columns if necessary
         final_input_ids = []
         final_labels = []
         final_attention_mask = []
@@ -355,7 +353,7 @@ def main():
     )
 
     n_gpus = torch.cuda.device_count()
-    max_memory = f'{22888}MB'
+    max_memory = f'{22000}MB'
     print('Number of GPUs: ' + str(n_gpus))
     print('Max memory: ' + str(max_memory))
     model = AutoModelForCausalLM.from_pretrained(
