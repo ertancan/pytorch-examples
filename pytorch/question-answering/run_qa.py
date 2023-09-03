@@ -22,7 +22,6 @@ import copy
 import logging
 import os
 import sys
-import warnings
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -46,6 +45,7 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils.versions import require_version
 
 import torch.optim as optim
+from torch.optim.lr_scheduler import StepLR
 import torch
 from peft import LoraConfig, get_peft_model, AutoPeftModelForCausalLM
 
@@ -429,6 +429,15 @@ def main():
     for k, v in dtypes.items():
         print(k, v, v/total)
     
+    optimizer = optim.AdamW(
+            model.parameters(),
+            lr=training_args.learning_rate,
+            weight_decay=0.1, # Same as in the original paper
+        )
+    scheduler = StepLR(optimizer, 
+                       step_size=1,  # Change learning rate every step_size epochs
+                       gamma=0.1  # 0.1 is the default
+                       )
     #TODO: Create custom trainer
     trainer = Trainer(
         model=model,
