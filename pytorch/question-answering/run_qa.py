@@ -451,8 +451,8 @@ def main():
             logging_steps=1,
             fp16=True,
             output_dir="outputs",
-            # Ignoring the optimizer for now as it defaults to AdamW
         ),
+        optimizers=(optimizer, scheduler),
         data_collator=data_collator
     )
 
