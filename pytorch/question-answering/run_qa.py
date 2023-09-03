@@ -49,6 +49,7 @@ from transformers.utils.versions import require_version
 
 import torch.optim as optim
 import torch
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, AutoPeftModelForCausalLM
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 #check_min_version("4.33.0.dev0")
@@ -151,6 +152,55 @@ class DataTrainingArguments:
             if self.train_file is not None:
                 extension = self.train_file.split(".")[-1]
                 assert extension in ["csv", "json"], "`train_file` should be a csv or a json file."
+
+def create_peft_config(modules):
+    """
+    Create Parameter-Efficient Fine-Tuning config for your model
+    :param modules: Names of the modules to apply Lora to
+    """
+    config = LoraConfig(
+        r=16,  # dimension of the updated matrices
+        lora_alpha=64,  # parameter for scaling
+        target_modules=modules,
+        lora_dropout=0.1,  # dropout probability for layers
+        bias="none",
+        task_type="CAUSAL_LM",
+    )
+
+    return config
+
+
+def find_all_linear_names(model):
+    cls = torch.nn.Linear
+    lora_module_names = set()
+    for name, module in model.named_modules():
+        if isinstance(module, cls):
+            names = name.split('.')
+            lora_module_names.add(names[0] if len(names) == 1 else names[-1])
+
+    if 'lm_head' in lora_module_names:  # needed for 16-bit
+        lora_module_names.remove('lm_head')
+    return list(lora_module_names)
+
+def print_trainable_parameters(model):
+    """
+    Prints the number of trainable parameters in the model.
+    """
+    trainable_params = 0
+    all_param = 0
+    for _, param in model.named_parameters():
+        num_params = param.numel()
+        # if using DS Zero 3 and the weights are initialized empty
+        if num_params == 0 and hasattr(param, "ds_numel"):
+            num_params = param.ds_numel
+
+        all_param += num_params
+        if param.requires_grad:
+            trainable_params += num_params
+
+    print(
+        f"all params: {all_param:,d} || trainable params: {trainable_params:,d} || trainable%: {100 * trainable_params / all_param}"
+    )
 
 def main():
     # See all possible arguments in src/transformers/training_args.py
@@ -356,13 +406,32 @@ def main():
     max_memory = f'{21800}MB'
     print('Number of GPUs: ' + str(n_gpus))
     print('Max memory: ' + str(max_memory))
+    print('Loading the original model')
     model = AutoModelForCausalLM.from_pretrained(
         model_args.model_name_or_path,
         config=config,
         device_map='auto', 
         max_memory={i: max_memory for i in range(n_gpus)}
     )
+    model.gradient_checkpointing_enable()
+    modules = find_all_linear_names(model)
+    peft_config = create_peft_config(modules)
+    print('Getting the PEFT model')
+    model = get_peft_model(model, peft_config)
+    print_trainable_parameters(model)
 
+    # Following looks unnecessary
+    dtypes = {}
+    for _, p in model.named_parameters():
+        dtype = p.dtype
+        if dtype not in dtypes: dtypes[dtype] = 0
+        dtypes[dtype] += p.numel()
+    total = 0
+    for k, v in dtypes.items(): total+= v
+    for k, v in dtypes.items():
+        print(k, v, v/total)
+    
+    #TODO: Create custom trainer
     trainer = Trainer(
         model=model,
         train_dataset=train_dataset,
