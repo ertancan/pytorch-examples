@@ -107,7 +107,10 @@ class DataTrainingArguments:
     Arguments pertaining to what data we are going to input our model for training and eval.
     """
     train_file: Optional[str] = field(default=None, metadata={"help": "The input training data file (a text file)."})
-
+    test_file: Optional[str] = field(
+        default=None,
+        metadata={"help": "An optional input test data file to evaluate the perplexity on (a text file)."},
+    )
     overwrite_cache: bool = field(
         default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
     )
