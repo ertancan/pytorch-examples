@@ -76,19 +76,6 @@ class ModelArguments:
         default=None,
         metadata={"help": "Path to directory to store the pretrained models downloaded from huggingface.co"},
     )
-    model_revision: str = field(
-        default="main",
-        metadata={"help": "The specific model version to use (can be a branch name, tag name or commit id)."},
-    )
-    token: str = field(
-        default=None,
-        metadata={
-            "help": (
-                "The token to use as HTTP bearer authorization for remote files. If not specified, will use the token "
-                "generated when running `huggingface-cli login` (stored in `~/.huggingface`)."
-            )
-        },
-    )
     trust_remote_code: bool = field(
         default=False,
         metadata={
@@ -445,12 +432,12 @@ def main():
       #  test_dataset=test_dataset,
         args=TrainingArguments(
             gradient_accumulation_steps=4,
-            num_train_epochs=10,
-            warmup_steps=2,
-            learning_rate=1e-4,
+            num_train_epochs=training_args.num_train_epochs,
+            warmup_steps=training_args.warmup_steps,
+            learning_rate=training_args.learning_rate,
             logging_steps=1,
             fp16=True,
-            output_dir="outputs",
+            output_dir=training_args.output_dir,
         ),
         optimizers=(optimizer, scheduler),
         data_collator=data_collator
