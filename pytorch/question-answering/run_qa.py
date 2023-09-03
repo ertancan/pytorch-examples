@@ -28,8 +28,6 @@ from typing import Optional
 
 import datasets
 from datasets import load_dataset
-from trainer_qa import QuestionAnsweringTrainer
-from utils_qa import postprocess_qa_predictions
 
 import transformers
 from transformers import (
@@ -49,7 +47,7 @@ from transformers.utils.versions import require_version
 
 import torch.optim as optim
 import torch
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, AutoPeftModelForCausalLM
+from peft import LoraConfig, get_peft_model, AutoPeftModelForCausalLM
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 #check_min_version("4.33.0.dev0")
