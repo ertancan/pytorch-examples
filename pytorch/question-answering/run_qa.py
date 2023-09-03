@@ -353,7 +353,7 @@ def main():
     )
 
     n_gpus = torch.cuda.device_count()
-    max_memory = f'{22000}MB'
+    max_memory = f'{21800}MB'
     print('Number of GPUs: ' + str(n_gpus))
     print('Max memory: ' + str(max_memory))
     model = AutoModelForCausalLM.from_pretrained(
