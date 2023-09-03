@@ -18,6 +18,7 @@ Fine-tuning the library models for question answering using a slightly adapted v
 """
 # You can also adapt this script on your own question answering task. Pointers for this are left as comments.
 
+import copy
 import logging
 import os
 import sys
@@ -254,17 +255,6 @@ def main():
     logger.info ('Adding EOS token (' + tokenizer.eos_token + ') as pad token')
     tokenizer.pad_token = tokenizer.eos_token
 
-    n_gpus = torch.cuda.device_count()
-    max_memory = f'{22888}MB'
-    print('Number of GPUs: ' + str(n_gpus))
-    print('Max memory: ' + str(max_memory))
-    model = AutoModelForCausalLM.from_pretrained(
-        model_args.model_name_or_path,
-        config=config,
-        device_map='auto', 
-        max_memory={i: max_memory for i in range(n_gpus)}
-    )
-
     # Tokenizer check: this script requires a fast tokenizer.
     if not isinstance(tokenizer, PreTrainedTokenizerFast):
         raise ValueError(
@@ -289,22 +279,44 @@ def main():
         # Some of the questions have lots of whitespace on the left, which is not useful and will make the
         # truncation of the context fail (the tokenized question will take a lots of space). So we remove that
         # left whitespace
-        examples[question_column_name] = [q.lstrip() for q in examples[question_column_name]]
+        final_input_ids = []
+        final_labels = []
+        final_attention_mask = []
+        for i in range(len(examples[question_column_name])):    
+            prompt = examples[question_column_name][i]
+            
+            example = prompt + examples[answer_column_name][i]
+            prompt = torch.tensor(
+                tokenizer.encode(prompt), dtype=torch.int64
+            )
+            example = tokenizer.encode(example)
+            example = torch.tensor(
+                example, dtype=torch.int64
+            )
 
-        # Tokenize our examples with truncation and maybe padding, but keep the overflows using a stride. This results
-        # in one example possible giving several features when a context is long, each of those features having a
-        # context that overlaps a bit the context of the previous feature.
-        tokenized_examples = tokenizer(
-            examples[question_column_name],
-            examples[answer_column_name],
-            max_length=max_seq_length,
-            stride=data_args.doc_stride,
-            return_overflowing_tokens=True,
-            return_offsets_mapping=True,
-            padding="max_length" if data_args.pad_to_max_length else False,
-        )
+            padding = max_seq_length - example.shape[0]
+            if padding > 0:
+                example = torch.cat((example, torch.zeros(padding, dtype=torch.int64) - 1))
+            elif padding < 0:
+                example = example[: max_seq_length]
+            labels = copy.deepcopy(example)
+            labels[: len(prompt)] = -1
+            example_mask = example.ge(0)
+            label_mask = labels.ge(0)
+            example[~example_mask] = 0
+            labels[~label_mask] = 0
+            example_mask = example_mask.float()
+            label_mask = label_mask.float()
 
-        return tokenized_examples
+            final_input_ids.append(example)
+            final_labels.append(labels)
+            final_attention_mask.append(example_mask) 
+
+        examples['input_ids'] = final_input_ids
+        examples['labels'] = final_labels
+        examples['attention_mask'] = final_attention_mask
+
+        return examples
 
     if training_args.do_train:
         if "train" not in raw_datasets:
@@ -342,6 +354,16 @@ def main():
         else DataCollatorWithPadding(tokenizer, pad_to_multiple_of=8 if training_args.fp16 else None)
     )
 
+    n_gpus = torch.cuda.device_count()
+    max_memory = f'{22888}MB'
+    print('Number of GPUs: ' + str(n_gpus))
+    print('Max memory: ' + str(max_memory))
+    model = AutoModelForCausalLM.from_pretrained(
+        model_args.model_name_or_path,
+        config=config,
+        device_map='auto', 
+        max_memory={i: max_memory for i in range(n_gpus)}
+    )
 
     trainer = Trainer(
         model=model,
