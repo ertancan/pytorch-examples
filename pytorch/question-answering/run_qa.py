@@ -394,7 +394,7 @@ def main():
         device_map='auto', 
         max_memory={i: max_memory for i in range(n_gpus)}
     )
-    # model.gradient_checkpointing_enable()
+    model.gradient_checkpointing_enable()
     modules = find_all_linear_names(model)
     peft_config = create_peft_config(modules)
     print('Getting the PEFT model')
