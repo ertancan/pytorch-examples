@@ -475,7 +475,7 @@ def main():
             lr=training_args.learning_rate,
             weight_decay=0.0,
         )
-    scheduler = StepLR(optimizer, step_size=50, gamma=0.01, verbose=True)
+    scheduler = StepLR(optimizer, step_size=100, gamma=0.8, verbose=True)
     trainer = VeritaTrainer(
         model=model,
         train_dataset=train_dataset,
