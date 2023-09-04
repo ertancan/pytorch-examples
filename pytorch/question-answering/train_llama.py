@@ -18,6 +18,12 @@ Fine-tuning the library models for question answering using a slightly adapted v
 """
 # You can also adapt this script on your own question answering task. Pointers for this are left as comments.
 
+#TODO: Input concatenation
+#TODO: decay stepping function only for epochs
+#TODO: GPU memory utilization looks like 3/4 (bigger batch size?)
+#TODO: earlier checkpointing (but not early stopping within epochs) maybe?
+#TODO: try distributed training maybe?
+#TODO: eval maybe?
 import copy
 import logging
 import os
@@ -37,7 +43,6 @@ from transformers import (
     HfArgumentParser,
     PreTrainedTokenizerFast,
     TrainingArguments,
-    Trainer,
     default_data_collator,
     set_seed,
 )
@@ -48,6 +53,8 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import StepLR
 import torch
 from peft import LoraConfig, get_peft_model, AutoPeftModelForCausalLM
+
+from verita_trainer import VeritaTrainer
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 #check_min_version("4.33.0.dev0")
@@ -413,7 +420,7 @@ def main():
         print(k, v, v/total)
     
     #TODO: Create custom trainer
-    trainer = Trainer(
+    trainer = VeritaTrainer(
         model=model,
         train_dataset=train_dataset,
       #  test_dataset=test_dataset,
@@ -439,7 +446,7 @@ def main():
         trainer.save_metrics("train", metrics)
         trainer.save_state()
 
-    kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "question-answering"}
+    kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "llama-finetuning"}
 
     trainer.create_model_card(**kwargs)
 
