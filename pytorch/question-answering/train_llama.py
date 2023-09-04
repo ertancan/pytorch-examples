@@ -152,6 +152,7 @@ class Concatenator(object):
         self.residual = {"input_ids": [], "attention_mask": []}
         
     def __call__(self, batch):
+        initial_size = len(batch['labels'])
         concatenated_samples = {
             k: v + list(chain(*batch[k])) for k, v in self.residual.items()
         }
@@ -177,7 +178,12 @@ class Concatenator(object):
             self.residual = {k: [] for k in concatenated_samples.keys()}
 
         result["labels"] = result["input_ids"].copy()
-
+        print(len(result['labels']))
+        print(initial_size)
+        for _ in range(initial_size- len(result['labels'])):
+            result['labels'].append(None)
+            result['input_ids'].append(None)
+            result['attention_mask'].append(None)
         return result
 
 def create_peft_config(modules):
@@ -410,7 +416,9 @@ def main():
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on train dataset",
             )
-            #train_dataset = train_dataset.map(Concatenator(), batched=True)
+            train_dataset = train_dataset.map(Concatenator(), batched=True)
+            train_dataset = train_dataset.filter(lambda x: x['input_ids'] is not None)
+            train_dataset = train_dataset.remove_columns([question_column_name, answer_column_name])
             print(train_dataset)
         with training_args.main_process_first(desc="train dataset map pre-processing"):
             print(test_dataset)
