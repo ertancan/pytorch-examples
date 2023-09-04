@@ -53,6 +53,7 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import StepLR
 import torch
 from peft import LoraConfig, get_peft_model, AutoPeftModelForCausalLM
+from itertools import chain
 
 from verita_trainer import VeritaTrainer
 
@@ -145,6 +146,39 @@ class DataTrainingArguments:
                 extension = self.train_file.split(".")[-1]
                 assert extension in ["csv", "json"], "`train_file` should be a csv or a json file."
 
+class Concatenator(object):
+    def __init__(self, chunk_size=2048):
+        self.chunk_size=chunk_size
+        self.residual = {"input_ids": [], "attention_mask": []}
+        
+    def __call__(self, batch):
+        concatenated_samples = {
+            k: v + list(chain(*batch[k])) for k, v in self.residual.items()
+        }
+
+        total_length = len(concatenated_samples[list(concatenated_samples.keys())[0]])
+
+        if total_length >= self.chunk_size:
+            chunk_num = total_length // self.chunk_size
+            result = {
+                k: [
+                    v[i : i + self.chunk_size]
+                    for i in range(0, chunk_num * self.chunk_size, self.chunk_size)
+                ]
+                for k, v in concatenated_samples.items()
+            }
+            self.residual = {
+                k: v[(chunk_num * self.chunk_size) :]
+                for k, v in concatenated_samples.items()
+            }
+        else:
+            result = concatenated_samples
+            self.residual = {k: [] for k in concatenated_samples.keys()}
+
+        result["labels"] = result["input_ids"].copy()
+
+        return result
+    
 def create_peft_config(modules):
     """
     Create Parameter-Efficient Fine-Tuning config for your model
@@ -301,8 +335,8 @@ def main():
             " this requirement"
         )
    
-    question_column_name = "prompt"
-    answer_column_name = "completion"
+    question_column_name = "question"
+    answer_column_name = "answer"
 
 
     if data_args.max_seq_length > tokenizer.model_max_length:
@@ -371,7 +405,8 @@ def main():
                 num_proc=data_args.preprocessing_num_workers,
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on train dataset",
-            )
+            )#.map(Concatenator(), batched=True)
+            print(train_dataset)
         with training_args.main_process_first(desc="train dataset map pre-processing"):
             print(test_dataset)
             test_dataset = test_dataset.map(
@@ -380,7 +415,8 @@ def main():
                 num_proc=data_args.preprocessing_num_workers,
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on train dataset",
-            )
+            )#.map(Concatenator(), batched=True)
+            print(test_dataset)
     # Data collator
     # We have already padded to max length if the corresponding flag is True, otherwise we need to pad in the data
     # collator.
