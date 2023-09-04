@@ -178,12 +178,13 @@ class Concatenator(object):
             self.residual = {k: [] for k in concatenated_samples.keys()}
 
         result["labels"] = result["input_ids"].copy()
-        print(len(result['labels']))
-        print(initial_size)
-        for _ in range(initial_size- len(result['labels'])):
-            result['labels'].append(None)
-            result['input_ids'].append(None)
-            result['attention_mask'].append(None)
+        # If the input still contains the question and answer fields, fill the output will None to filter later
+        # print(len(result['labels']))
+        # print(initial_size)
+        # for _ in range(initial_size- len(result['labels'])):
+        #     result['labels'].append(None)
+        #     result['input_ids'].append(None)
+        #     result['attention_mask'].append(None)
         return result
 
 def create_peft_config(modules):
@@ -384,9 +385,6 @@ def main():
             labels[~label_mask] = 0
             example_mask = example_mask.float()
             label_mask = label_mask.float()
-            print('Example:shape' + str(example.shape))
-            print('labels:shape' + str(labels.shape))
-            print('example_mask:shape' + str(example_mask.shape))
 
             final_input_ids.append(example)
             final_labels.append(labels)
@@ -416,9 +414,10 @@ def main():
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on train dataset",
             )
+            train_dataset = train_dataset.remove_columns([question_column_name, answer_column_name])
             train_dataset = train_dataset.map(Concatenator(), batched=True)
             train_dataset = train_dataset.filter(lambda x: x['input_ids'] is not None)
-            train_dataset = train_dataset.remove_columns([question_column_name, answer_column_name])
+            
             print(train_dataset)
         with training_args.main_process_first(desc="train dataset map pre-processing"):
             print(test_dataset)
@@ -429,6 +428,9 @@ def main():
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on train dataset",
             )#.map(Concatenator(), batched=True)
+            test_dataset = test_dataset.remove_columns([question_column_name, answer_column_name])
+            test_dataset = test_dataset.map(Concatenator(), batched=True)
+            test_dataset = test_dataset.filter(lambda x: x['input_ids'] is not None)
             print(test_dataset)
     # Data collator
     # We have already padded to max length if the corresponding flag is True, otherwise we need to pad in the data

@@ -13,7 +13,7 @@ class VeritaTrainer(Trainer):
         print('VeritaTrainer: saving model to ', output_dir)
         temp_folder = '/root/.cache/'
         cache_path = os.path.join(temp_folder, leaf_folder)
-        os.mkdir(cache_path, parents=True, exist_ok=True)
+        os.makedirs(cache_path, exist_ok=True)
         print('Saving the model to cache_path ', cache_path)
         self.model.save_pretrained(cache_path, safe_serialization=self.args.save_safetensors)
         upload_command = ['aws', 's3', 'cp', cache_path, output_dir, '--recursive']
