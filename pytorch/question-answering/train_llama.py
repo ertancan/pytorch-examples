@@ -468,13 +468,14 @@ def main():
     for k, v in dtypes.items(): total+= v
     for k, v in dtypes.items():
         print(k, v, v/total)
+    
+    
     optimizer = optim.AdamW(
             model.parameters(),
             lr=training_args.learning_rate,
             weight_decay=0.0,
         )
-    scheduler = StepLR(optimizer, step_size=20, verbose=True)
-    #TODO: Create custom trainer
+    scheduler = StepLR(optimizer, step_size=50, gamma=0.01, verbose=True)
     trainer = VeritaTrainer(
         model=model,
         train_dataset=train_dataset,
