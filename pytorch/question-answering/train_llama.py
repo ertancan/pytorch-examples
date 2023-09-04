@@ -356,7 +356,6 @@ def main():
 
     # Training preprocessing
     def prepare_train_features(examples):
-        #TODO: Delete the extra columns if necessary
         final_input_ids = []
         final_labels = []
         final_attention_mask = []
@@ -427,7 +426,7 @@ def main():
                 num_proc=data_args.preprocessing_num_workers,
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on train dataset",
-            )#.map(Concatenator(), batched=True)
+            )
             test_dataset = test_dataset.remove_columns([question_column_name, answer_column_name])
             test_dataset = test_dataset.map(Concatenator(), batched=True)
             test_dataset = test_dataset.filter(lambda x: x['input_ids'] is not None)
@@ -469,14 +468,20 @@ def main():
     for k, v in dtypes.items(): total+= v
     for k, v in dtypes.items():
         print(k, v, v/total)
-    
+    optimizer = optim.AdamW(
+            model.parameters(),
+            lr=training_args.learning_rate,
+            weight_decay=0.0,
+        )
+    scheduler = StepLR(optimizer, step_size=20, verbose=True)
     #TODO: Create custom trainer
     trainer = VeritaTrainer(
         model=model,
         train_dataset=train_dataset,
       #  test_dataset=test_dataset,
         args=training_args,
-        data_collator=data_collator
+        data_collator=data_collator,
+        optimizers=(optimizer, scheduler)
     )
 
     # Training
