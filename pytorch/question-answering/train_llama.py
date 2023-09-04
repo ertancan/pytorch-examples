@@ -157,6 +157,7 @@ class Concatenator(object):
         }
 
         total_length = len(concatenated_samples[list(concatenated_samples.keys())[0]])
+        print(total_length)
 
         if total_length >= self.chunk_size:
             chunk_num = total_length // self.chunk_size
@@ -178,7 +179,7 @@ class Concatenator(object):
         result["labels"] = result["input_ids"].copy()
 
         return result
-    
+
 def create_peft_config(modules):
     """
     Create Parameter-Efficient Fine-Tuning config for your model
@@ -364,11 +365,11 @@ def main():
                 example, dtype=torch.int64
             )
 
-            padding = max_seq_length - example.shape[0]
-            if padding > 0:
-                example = torch.cat((example, torch.zeros(padding, dtype=torch.int64) - 1))
-            elif padding < 0:
-                example = example[: max_seq_length]
+            # padding = max_seq_length - example.shape[0]
+            # if padding > 0:
+            #     example = torch.cat((example, torch.zeros(padding, dtype=torch.int64) - 1))
+            # elif padding < 0:
+            #     example = example[: max_seq_length]
             labels = copy.deepcopy(example)
             labels[: len(prompt)] = -1
             example_mask = example.ge(0)
@@ -377,6 +378,9 @@ def main():
             labels[~label_mask] = 0
             example_mask = example_mask.float()
             label_mask = label_mask.float()
+            print('Example:shape' + str(example.shape))
+            print('labels:shape' + str(labels.shape))
+            print('example_mask:shape' + str(example_mask.shape))
 
             final_input_ids.append(example)
             final_labels.append(labels)
@@ -405,7 +409,8 @@ def main():
                 num_proc=data_args.preprocessing_num_workers,
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on train dataset",
-            )#.map(Concatenator(), batched=True)
+            )
+            #train_dataset = train_dataset.map(Concatenator(), batched=True)
             print(train_dataset)
         with training_args.main_process_first(desc="train dataset map pre-processing"):
             print(test_dataset)
