@@ -100,8 +100,15 @@ class DataTrainingArguments:
         default=None,
         metadata={"help": "An optional input test data file to evaluate the perplexity on (a text file)."},
     )
+    final_model_s3_path: Optional[str] = field(
+        default=None,
+        metadata={"help": "Push the model to S3 explicitly if given"},
+    )
     overwrite_cache: bool = field(
         default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
+    )
+    do_lora: bool = field(
+        default=False, metadata={"help": "Should we perform Lora?"}
     )
     preprocessing_num_workers: Optional[int] = field(
         default=None,
@@ -446,22 +453,24 @@ def main():
         max_memory={i: max_memory for i in range(n_gpus)}
     )
     model.gradient_checkpointing_enable()
-    modules = find_all_linear_names(model)
-    peft_config = create_peft_config(modules)
-    print('Getting the PEFT model')
-    model = get_peft_model(model, peft_config)
-    print_trainable_parameters(model)
+    if data_args.do_lora:
+        print('Doing Lora')
+        modules = find_all_linear_names(model)
+        peft_config = create_peft_config(modules)
+        print('Getting the PEFT model')
+        model = get_peft_model(model, peft_config)
+        print_trainable_parameters(model)
 
-    # Following looks unnecessary
-    dtypes = {}
-    for _, p in model.named_parameters():
-        dtype = p.dtype
-        if dtype not in dtypes: dtypes[dtype] = 0
-        dtypes[dtype] += p.numel()
-    total = 0
-    for k, v in dtypes.items(): total+= v
-    for k, v in dtypes.items():
-        print(k, v, v/total)
+        # Following looks unnecessary
+        dtypes = {}
+        for _, p in model.named_parameters():
+            dtype = p.dtype
+            if dtype not in dtypes: dtypes[dtype] = 0
+            dtypes[dtype] += p.numel()
+        total = 0
+        for k, v in dtypes.items(): total+= v
+        for k, v in dtypes.items():
+            print(k, v, v/total)
     
     
     optimizer = optim.AdamW(
@@ -470,7 +479,7 @@ def main():
             weight_decay=0.0,
         )
     scheduler = StepLR(optimizer, step_size=100, gamma=0.8, verbose=True)
-    trainer = Trainer(
+    trainer = VeritaTrainer(
         model=model,
         train_dataset=train_dataset,
       #  test_dataset=test_dataset,
@@ -500,6 +509,9 @@ def main():
     kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "llama-finetuning"}
 
     trainer.create_model_card(**kwargs)
+    print('Writing the final model to s3 just in case')
+    if data_args.final_model_s3_path is not None:
+        trainer._save(data_args.final_model_s3_path)
 
 
 def _mp_fn(index):
