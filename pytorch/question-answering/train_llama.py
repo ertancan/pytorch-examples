@@ -13,17 +13,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""
-Fine-tuning the library models for question answering using a slightly adapted version of the 🤗 Trainer.
-"""
-# You can also adapt this script on your own question answering task. Pointers for this are left as comments.
 
-#TODO: Input concatenation
-#TODO: decay stepping function only for epochs
-#TODO: GPU memory utilization looks like 3/4 (bigger batch size?)
-#TODO: earlier checkpointing (but not early stopping within epochs) maybe?
+#TODO: eval
+#TODO: Restore checkpoint
 #TODO: try distributed training maybe?
-#TODO: eval maybe?
 import copy
 import logging
 import os
@@ -45,6 +38,7 @@ from transformers import (
     TrainingArguments,
     default_data_collator,
     set_seed,
+    Trainer
 )
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils.versions import require_version
@@ -476,7 +470,7 @@ def main():
             weight_decay=0.0,
         )
     scheduler = StepLR(optimizer, step_size=100, gamma=0.8, verbose=True)
-    trainer = VeritaTrainer(
+    trainer = Trainer(
         model=model,
         train_dataset=train_dataset,
       #  test_dataset=test_dataset,
